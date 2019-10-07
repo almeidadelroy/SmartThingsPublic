@@ -1,3 +1,13 @@
+/*
+ * -----------------------
+ * --- DEVICE HANDLER ----
+ * -----------------------
+ *
+ * STOP:  Do NOT PUBLISH the code to GitHub, it is a VIOLATION of the license terms.
+ * You are NOT allowed share, distribute, reuse or publicly host (e.g. GITHUB) the code. Refer to the license details on our website.
+ *
+ */
+
 /* **DISCLAIMER**
  * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
  * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -10,12 +20,25 @@
  * The user assumes all responsibility for selecting the software and for the results obtained from the use of the software. The user shall bear the entire risk as to the quality and the performance of the software.
  */ 
  
+def clientVersion() {
+    return "02.05.01"
+}
+
 /*
- * Modified by RBoy, SmartThings Z-Wave Garage Door Opener base code as of 2015-9-19
- * Changes Copyright RBoy, redistribution of any changes or modified code is not allowed without permission
- * Version 2.1.4
+ * Modified by RBoy Apps, SmartThings Z-Wave Garage Door Opener base code as of 2015-9-19
+ * Changes Copyright RBoy Apps, redistribution of any changes or modified code is not allowed without permission
  *
  * Change Log
+ * 2017-5-4 - (v02.05.01) Updated color scheme to match ST's recommendation
+ * 2016-11-5 - Added ability to report name and version for checking for code updates
+ * 2016-10-6 - Put a patch to compensate for phantom "Opening" events from the device and only report state open when it's completely open
+ * 2016-8-15 - Added default battery state to reset when first initalizing the system
+ * 2016-6-28 - Show reset low battery notification button when battery is low
+ * 2016-4-20 - Added DH version in setup page
+ * 2016-3-26 - Dont' report phantom "opening" messages from the GD00Z-4
+ * 2016-3-15 - Added updated function
+ * 2016-2-14 - Dont' write to event log on every poll
+ * 2016-2-10 - Added polling capability for better updates
  * 2015-12-30 - Send attribute "momentary.pushed" when a push command is sent
  * 2015-12-12 - Added capability polling and relay switch
  * 2015-9-23 - Updated layout and colors
@@ -25,11 +48,6 @@
  * 2015-4-29 - Added Garage door control capability
  * 2015-2-22 - Fixed issue with swtich status not being reported
  * 2015-2-2 - Added support for Switch capabilities to use directly with ST App
- *
- */
- 
- /**
- *  Z-Wave Garage Door Opener
  *
  *  Copyright 2014 SmartThings
  *
@@ -43,8 +61,9 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
+ 
 metadata {
-	definition (name: "Z-Wave Garage Door Opener with Switch Capability", namespace: "rboy", author: "RBoy") {
+	definition (name: "Z-Wave Garage Door Opener with Switch Capability", namespace: "rboy", author: "RBoy Apps") {
 		capability "Actuator"
 		capability "Door Control"
 		capability "Garage Door Control"
@@ -57,7 +76,11 @@ metadata {
         capability "Momentary"
         capability "Battery"
         
+        command "resetBattery"
+        
         attribute "lowBattery", "string"
+        attribute "codeVersion", "string"
+        attribute "dhName", "string"
 
 		fingerprint deviceId: "0x4007", inClusters: "0x98"
 		fingerprint deviceId: "0x4006", inClusters: "0x98"
@@ -74,25 +97,29 @@ metadata {
 		reply "9881006601FF": "command: 9881, payload: 00 66 03 FE"
 	}
 
+    preferences {
+        input title: "", description: "Z-Wave Garage Door Opener Device Handler v${clientVersion()}", displayDuringSetup: false, type: "paragraph", element: "paragraph"
+    }
+
 	tiles(scale: 2) {
 		multiAttributeTile(name:"summary", type: "generic", width: 6, height: 4){
 			tileAttribute ("device.door", key: "PRIMARY_CONTROL") {
-                attributeState("unknown", label:'${name}', action:"refresh.refresh", icon:"st.doors.garage.garage-open", backgroundColor:"#ffa81e")
-                attributeState("closed", label:'${name}', action:"door control.open", icon:"st.doors.garage.garage-closed", backgroundColor:"#79b821", nextState:"opening")
-                attributeState("open", label:'${name}', action:"door control.close", icon:"st.doors.garage.garage-open", backgroundColor:"#ffa81e", nextState:"closing")
-                attributeState("opening", label:'${name}', icon:"st.doors.garage.garage-opening", backgroundColor:"#ffe71e")
-                attributeState("closing", label:'${name}', icon:"st.doors.garage.garage-closing", backgroundColor:"#ffe71e")
+                attributeState("unknown", label:'${name}', action:"refresh.refresh", icon:"st.doors.garage.garage-open", backgroundColor:"#e86d13")
+                attributeState("closed", label:'${name}', action:"door control.open", icon:"st.doors.garage.garage-closed", backgroundColor:"#00a0dc", nextState:"opening")
+                attributeState("open", label:'${name}', action:"door control.close", icon:"st.doors.garage.garage-open", backgroundColor:"#e86d13", nextState:"closing")
+                attributeState("opening", label:'${name}', icon:"st.doors.garage.garage-opening", backgroundColor:"#e86d13")
+                attributeState("closing", label:'${name}', icon:"st.doors.garage.garage-closing", backgroundColor:"#00a0dc")
             }
             tileAttribute ("device.lowBattery", key: "SECONDARY_CONTROL") {
 	            attributeState "battery", label:'${currentValue}', backgroundColor:"#ffffff"
             }
         }
 		standardTile("toggle", "device.door", width: 4, height: 4) {
-			state("unknown", label:'${name}', action:"refresh.refresh", icon:"st.doors.garage.garage-open", backgroundColor:"#ffa81e")
-			state("closed", label:'${name}', action:"door control.open", icon:"st.doors.garage.garage-closed", backgroundColor:"#79b821", nextState:"opening")
-			state("open", label:'${name}', action:"door control.close", icon:"st.doors.garage.garage-open", backgroundColor:"#ffa81e", nextState:"closing")
-			state("opening", label:'${name}', icon:"st.doors.garage.garage-opening", backgroundColor:"#ffe71e")
-			state("closing", label:'${name}', icon:"st.doors.garage.garage-closing", backgroundColor:"#ffe71e")
+			state("unknown", label:'${name}', action:"refresh.refresh", icon:"st.doors.garage.garage-open", backgroundColor:"#e86d13")
+			state("closed", label:'${name}', action:"door control.open", icon:"st.doors.garage.garage-closed", backgroundColor:"#00a0dc", nextState:"opening")
+			state("open", label:'${name}', action:"door control.close", icon:"st.doors.garage.garage-open", backgroundColor:"#e86d13", nextState:"closing")
+			state("opening", label:'${name}', icon:"st.doors.garage.garage-opening", backgroundColor:"#e86d13")
+			state("closing", label:'${name}', icon:"st.doors.garage.garage-closing", backgroundColor:"#00a0dc")
 		}
 		standardTile("open", "device.door", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
 			state "default", label:'open', action:"door control.open", icon:"st.doors.garage.garage-opening"
@@ -104,7 +131,9 @@ metadata {
 			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
 		standardTile("batteryState", "device.lowBattery", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
-            state "battery", label:'${currentValue}', backgroundColor:"#ffffff"
+            state "Sensor Battery OK", label:'', backgroundColor:"#ffffff"
+            state "Replace Sensor Battery", label:'Reset Battery', action:"resetBattery", backgroundColor:"#ffffff"
+            state "", label:'Reset Battery', action:"resetBattery", backgroundColor:"#ffffff", defaultState: true
         }
         valueTile("battery", "device.battery", width: 2, height: 2, inactiveLabel: false) {
             state "battery", label:'Sensor Battery\n${currentValue}%', unit: "", backgroundColors:[
@@ -114,11 +143,23 @@ metadata {
         }
 
 		main "summary"
-		details(["summary", "open", "close", "battery", "refresh"])
+		details(["summary", "open", "close", "battery", "refresh", "batteryState"])
 	}
 }
 
 import physicalgraph.zwave.commands.barrieroperatorv1.*
+
+def updated() {
+	log.trace "Update called settings: $settings"
+	try {
+		if (!state.init) {
+			state.init = true
+		}
+        response(refresh()) // Get the updates
+	} catch (e) {
+		log.warn "updated() threw $e"
+	}
+}
 
 def parse(String description) {
 	def result = null
@@ -184,8 +225,6 @@ def zwaveEvent(BarrierOperatorReport cmd) {
 			break
 		case BarrierOperatorReport.BARRIER_STATE_UNKNOWN_POSITION_MOVING_TO_OPEN:
 			map.value = "opening"
-			result << createEvent(name: "contact", value: "open", displayed: false)
-			result << createEvent(name: "switch", value: "on", displayed: false)
 			break
 		case BarrierOperatorReport.BARRIER_STATE_OPEN:
 			map.value = "open"
@@ -352,15 +391,28 @@ def close() {
 
 def refresh() {
 	log.trace "Refresh called"
-    log.debug "Resetting low battery notifications"
-	sendEvent(name: "lowBattery", value: "Sensor Battery OK", descriptionText: "$device.displayName door sensor has a OK battery", displayed: true, isStateChange: true) // Reset Battery Notification
-	sendEvent(name: "battery", value: 100, unit: "%") // Reset battery level
-    
+    poll()
+}
+
+def poll() {
+	log.trace "Poll called"
+    log.debug "Device MSR ${state.MSR}"
+
+    sendEvent([name: "codeVersion", value: clientVersion()]) // Save client version for parent app
+    sendEvent([name: "dhName", value: "Z-Wave Garage Door Opener with Switch Capability Device Handler"]) // Save DH Name for parent app
+
 	// Get the latest status
 	delayBetween([
     	secure(zwave.barrierOperatorV1.barrierOperatorGet()),
-    	zwave.batteryV1.batteryGet().format() // Try to get battery level
+        zwave.batteryV1.batteryGet().format(), // Try to get battery level
+        state.MSR ? null : zwave.manufacturerSpecificV2.manufacturerSpecificGet().format() // Get the MSR if it doesnt' exist
         ], 2000)
+}
+
+def resetBattery() {
+    log.debug "Resetting low battery notifications"
+	sendEvent(name: "lowBattery", value: "Sensor Battery OK", descriptionText: "$device.displayName door sensor has a OK battery") // Reset Battery Notification
+	sendEvent(name: "battery", value: 100, unit: "%") // Reset battery level
 }
 
 private secure(physicalgraph.zwave.Command cmd) {
@@ -397,7 +449,10 @@ def push() {
             break
             
         default:
-        	log.error "Can't change state of door, unknown state $latest"
+        	log.debug "Can't change state of door, unknown state $latest"
             break
     }
 }
+
+// THIS IS THE END OF THE FILE
+
